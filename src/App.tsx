@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { QrCode, Download, Link, Check, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -8,11 +8,19 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [isValidUrl, setIsValidUrl] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Enhanced URL validation and normalization
+  const normalizeUrl = (inputUrl: string) => {
+    let trimmed = inputUrl.trim();
+    if (!/^https?:\/\//i.test(trimmed)) {
+      trimmed = 'https://' + trimmed;
+    }
+    return trimmed;
+  };
 
   const validateUrl = (inputUrl: string) => {
     try {
-      new URL(inputUrl);
+      new URL(normalizeUrl(inputUrl));
       return true;
     } catch {
       return false;
@@ -23,38 +31,32 @@ function App() {
     const newUrl = e.target.value;
     setUrl(newUrl);
     setError('');
-    setIsValidUrl(newUrl.length > 0 && validateUrl(newUrl));
+    setIsValidUrl(newUrl.trim().length > 0 && validateUrl(newUrl));
   };
 
   const generateQRCode = async () => {
-    if (!url) {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
       setError('Please enter a URL');
       return;
     }
-
-    if (!validateUrl(url)) {
-      setError('Please enter a valid URL (e.g., https://example.com)');
+    const normalized = normalizeUrl(trimmedUrl);
+    if (!validateUrl(trimmedUrl)) {
+      setError('Please enter a valid URL (e.g., example.com or https://example.com)');
       return;
     }
-
     setIsGenerating(true);
     setError('');
-
     try {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        await QRCode.toCanvas(canvas, url, {
-          width: 300,
-          margin: 2,
-          color: {
-            dark: '#1f2937',
-            light: '#ffffff',
-          },
-        });
-
-        const dataUrl = canvas.toDataURL();
-        setQrCodeDataUrl(dataUrl);
-      }
+      const dataUrl = await QRCode.toDataURL(normalized, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#1f2937',
+          light: '#ffffff',
+        },
+      });
+      setQrCodeDataUrl(dataUrl);
     } catch (err) {
       setError('Failed to generate QR code. Please try again.');
       console.error('QR Code generation error:', err);
@@ -65,7 +67,6 @@ function App() {
 
   const downloadQRCode = () => {
     if (!qrCodeDataUrl) return;
-
     const link = document.createElement('a');
     link.download = `qrcode-${Date.now()}.png`;
     link.href = qrCodeDataUrl;
@@ -93,7 +94,7 @@ function App() {
               QR Code Generator
             </h1>
             <p className="text-lg text-gray-600">
-              Transform any URL into a beautiful QR code instantly
+              Transform any link into a beautiful QR code instantly
             </p>
           </div>
 
@@ -103,19 +104,19 @@ function App() {
               {/* URL Input Section */}
               <div className="mb-8">
                 <label htmlFor="url" className="block text-sm font-semibold text-gray-700 mb-3">
-                  Enter your URL
+                  Enter your link (with or without https://)
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <Link className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
-                    type="url"
+                    type="text"
                     id="url"
                     value={url}
                     onChange={handleUrlChange}
                     onKeyPress={handleKeyPress}
-                    placeholder="https://example.com"
+                    placeholder="example.com or https://example.com"
                     className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-lg"
                   />
                   {isValidUrl && (
@@ -124,7 +125,6 @@ function App() {
                     </div>
                   )}
                 </div>
-                
                 {error && (
                   <div className="mt-3 flex items-center text-red-600 text-sm">
                     <AlertCircle className="h-4 w-4 mr-2" />
@@ -136,7 +136,7 @@ function App() {
               {/* Generate Button */}
               <button
                 onClick={generateQRCode}
-                disabled={!url || isGenerating}
+                disabled={!url.trim() || isGenerating}
                 className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 transform hover:scale-[1.02] disabled:scale-100 disabled:cursor-not-allowed shadow-lg"
               >
                 {isGenerating ? (
@@ -160,20 +160,13 @@ function App() {
                   <h3 className="text-xl font-semibold text-gray-900 mb-6">
                     Your QR Code is Ready!
                   </h3>
-                  
                   <div className="inline-block bg-white p-6 rounded-2xl shadow-lg mb-6">
-                    <canvas
-                      ref={canvasRef}
-                      className="rounded-lg"
-                      style={{ display: 'none' }}
-                    />
                     <img
                       src={qrCodeDataUrl}
                       alt="Generated QR Code"
                       className="max-w-full h-auto rounded-lg"
                     />
                   </div>
-
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
                       onClick={downloadQRCode}
@@ -182,12 +175,12 @@ function App() {
                       <Download className="w-5 h-5 mr-2" />
                       Download QR Code
                     </button>
-                    
                     <button
                       onClick={() => {
                         setQrCodeDataUrl('');
                         setUrl('');
                         setIsValidUrl(false);
+                        setError('');
                       }}
                       className="inline-flex items-center justify-center px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-105 shadow-md"
                     >
@@ -212,7 +205,6 @@ function App() {
                 Generate crisp, high-resolution QR codes perfect for any use case
               </p>
             </div>
-
             <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-gray-100">
               <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-xl mb-4">
                 <Download className="w-6 h-6 text-green-600" />
@@ -224,16 +216,15 @@ function App() {
                 Download your QR codes as PNG images ready for print or digital use
               </p>
             </div>
-
             <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-gray-100">
               <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-xl mb-4">
                 <Link className="w-6 h-6 text-purple-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Any URL
+                Any Link
               </h3>
               <p className="text-gray-600">
-                Works with any valid URL - websites, social media, contact info, and more
+                Works with any valid link - websites, social media, contact info, and more
               </p>
             </div>
           </div>
